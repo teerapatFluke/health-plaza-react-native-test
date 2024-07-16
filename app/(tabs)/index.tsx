@@ -142,9 +142,6 @@ export default function HomeScreen() {
               </View>
             </Modal>
           </Portal>
-          <Button style={{ marginTop: 30 }} onPress={showModal}>
-            Your Score
-          </Button>
           {questions.map((question: Question, index: number) => (
             <Card style={styles.cardQuestion} key={index}>
               <Card.Title
