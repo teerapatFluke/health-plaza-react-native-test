@@ -1,70 +1,262 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import { StyleSheet, View, SafeAreaView, ScrollView } from "react-native";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Button,
+  Card,
+  Text,
+  RadioButton,
+  Modal,
+  Portal,
+  PaperProvider,
+  TextInput,
+} from "react-native-paper";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { Question, Answer } from "@/interface/question";
+import { MathQuestions } from "@/components/MathQuestion";
+import { router, useFocusEffect } from "expo-router";
 
 export default function HomeScreen() {
+  const [questions, setQuestions] = useState<Question[]>([]);
+
+  const [score, setScore] = useState<number>(0);
+  const [name, setName] = useState<string>("");
+
+  const [visible, setVisible] = useState(false);
+  const showModal = () => setVisible(true);
+  const hideModal = () => setVisible(false);
+  const containerStyle = { backgroundColor: "white", padding: 20 };
+
+  useEffect(() => {
+    setName("");
+    setScore(0);
+    shuffleQuestion(MathQuestions);
+  }, []);
+
+  const checkAnswer = () => {
+    const updatedQuestions = [...questions];
+    let newScore = 0;
+    for (const question of questions) {
+      if (question.choose) {
+        question.correct = question.answer[question.choose].isAnswer
+          ? true
+          : false;
+        if (question.correct) {
+          newScore++;
+        }
+      }
+    }
+    setScore(newScore);
+    setQuestions(updatedQuestions);
+    showModal();
+  };
+
+  const sendToLeaderboard = async () => {
+    await _storeData();
+  };
+  const _storeData = async () => {
+    let leaderboardScore = await _retrieveData();
+    if (!leaderboardScore) {
+      leaderboardScore = { data: [] };
+    }
+    leaderboardScore.data.push({
+      name: name,
+      score: score,
+    });
+    const jsonScore = JSON.stringify(leaderboardScore);
+    try {
+      await AsyncStorage.setItem("LEADERBOARDSCORE", jsonScore);
+      console.log(jsonScore);
+      hideModal();
+      router.replace("/leaderboard");
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const _retrieveData = async () => {
+    try {
+      const scoreJson = await AsyncStorage.getItem("LEADERBOARDSCORE");
+
+      return scoreJson != null ? JSON.parse(scoreJson) : { data: [] };
+    } catch (error) {
+      console.log(error);
+    }
+  };
+  const shuffleQuestion = (question: any) => {
+    let curIndex = question.length;
+
+    while (curIndex != 0) {
+      let randomIndex = Math.floor(Math.random() * curIndex);
+      curIndex--;
+
+      [question[curIndex], question[randomIndex]] = [
+        question[randomIndex],
+        question[curIndex],
+      ];
+    }
+    setQuestions(question);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <PaperProvider>
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.textHeader}>Question</Text>
+
+        <ScrollView>
+          <Portal>
+            <Modal
+              visible={visible}
+              onDismiss={hideModal}
+              contentContainerStyle={containerStyle}
+            >
+              <View style={styles.scoreCotainer}>
+                <Text style={styles.scoreHeader}>Your Score</Text>
+                <Text style={styles.scoreText}>{score}</Text>
+                <TextInput
+                  mode="outlined"
+                  style={styles.textInput}
+                  theme={{ colors: { primary: "black" } }}
+                  placeholder="Enter your name"
+                  textColor="black"
+                  value={name}
+                  onChangeText={(text) => setName(text)}
+                />
+                <View style={styles.scoreButtonContainer}>
+                  <Button
+                    style={styles.scoreButton}
+                    mode="contained"
+                    disabled={!name.length}
+                    onPress={sendToLeaderboard}
+                  >
+                    Send Score
+                  </Button>
+                  <Button
+                    style={styles.scoreButton}
+                    mode="contained"
+                    onPress={hideModal}
+                  >
+                    Close
+                  </Button>
+                </View>
+              </View>
+            </Modal>
+          </Portal>
+          <Button style={{ marginTop: 30 }} onPress={showModal}>
+            Your Score
+          </Button>
+          {questions.map((question: Question, index: number) => (
+            <Card style={styles.cardQuestion} key={index}>
+              <Card.Title
+                title={
+                  <View style={styles.cardTitle}>
+                    <Text>{index + 1 + ". " + question.question}</Text>
+                    {question.correct !== null &&
+                    question.correct !== undefined ? (
+                      <Text
+                        style={
+                          question.correct ? styles.correct : styles.incorrect
+                        }
+                      >
+                        {question.correct ? "Correct" : "Incorrect"}
+                      </Text>
+                    ) : null}
+                  </View>
+                }
+              />
+              <Card.Content>
+                <RadioButton.Group
+                  onValueChange={(value) => {
+                    const updatedQuestions = [...questions];
+                    updatedQuestions[index].choose = Number(value);
+                    setQuestions(updatedQuestions);
+                  }}
+                  value={
+                    question.choose !== undefined
+                      ? question.choose.toString()
+                      : ""
+                  }
+                >
+                  {question.answer.map((answer: Answer, i: number) => (
+                    <RadioButton.Item
+                      key={i}
+                      label={answer.choiceText}
+                      value={i.toString()}
+                    />
+                  ))}
+                </RadioButton.Group>
+              </Card.Content>
+            </Card>
+          ))}
+          <Button
+            style={styles.buttonSubmit}
+            mode="contained"
+            onPress={checkAnswer}
+          >
+            Check Answer
+          </Button>
+        </ScrollView>
+      </SafeAreaView>
+    </PaperProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  textHeader: {
+    textAlign: "center",
+    fontSize: 24,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  cardQuestion: {
+    marginTop: 5,
+    marginHorizontal: 5,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  container: {
+    flex: 1,
+  },
+  buttonSubmit: {
+    marginVertical: 5,
+  },
+  cardTitle: {
+    display: "flex",
+    justifyContent: "space-between",
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    height: "100%",
+  },
+  correct: {
+    color: "green",
+  },
+  incorrect: {
+    color: "red",
+  },
+  textInput: {
+    backgroundColor: "white",
+    width: "100%",
+  },
+  scoreCotainer: {
+    display: "flex",
+    width: "100%",
+    alignItems: "center",
+  },
+  scoreHeader: {
+    fontSize: 25,
+    marginBottom: 10,
+  },
+  scoreText: {
+    fontSize: 20,
+    marginBottom: 10,
+    color: "green",
+  },
+  scoreButtonContainer: {
+    display: "flex",
+    flexDirection: "row",
+    marginTop: 10,
+    width: "100%",
+    justifyContent: "space-between",
+  },
+  scoreButton: {
+    flex: 1,
+    marginHorizontal: 1,
   },
 });
